@@ -1,0 +1,11 @@
+/local-build/
+__pycache__/
+*.py[cod]
+.godot/
+
+/playtest-data/
+/dist/
+
+/.agents/
+/.aws/
+/.codex/
