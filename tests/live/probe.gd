@@ -164,30 +164,7 @@ func advanced() -> void:
 	key_press(KEY_F7)
 	key_press(KEY_B)
 	key_press(KEY_Y)
-	var vhs := root_window.get_node("UI/VHS") as CanvasItem
-	var original_vhs := vhs.material as ShaderMaterial
-	var original_visibility := vhs.visible
-	key_press(KEY_C)
-	var without_fringe := vhs.material as ShaderMaterial
-	report("fringe_disabled", without_fringe != original_vhs and without_fringe.shader != original_vhs.shader
-		and without_fringe.shader.code.count("vec2(x_offset,0.0)") == 0
-		and without_fringe.shader.code.count("vec2(black_offset,0.0)") >= 2
-		and vhs.visible == original_visibility
-		and without_fringe.get_shader_parameter("blur_amount") == original_vhs.get_shader_parameter("blur_amount"))
-	key_press(KEY_C)
-	report("fringe_restored", vhs.material == original_vhs and vhs.visible == original_visibility)
-	key_press(KEY_C)
-	key_press(KEY_V)
-	var motion_off := false
-	for id in session.state._effects:
-		if session.state._effects[id][0] == 1:
-			var item := instance_from_id(id) as CanvasItem
-			if item.visible:
-				report("error", "Motion overlay remained visible")
-			motion_off = true
-	report("motion_effects_disabled", motion_off)
-	report("optics_controls", {"mm":session._mm(), "dof":session.dof, "dof_strength":st.dof_strength, "fringe_off":st.fringe_off, "clean_motion":st.clean_motion})
-	report("title_effects", session.state._effects.size())
+	report("optics_controls", {"mm":session._mm(), "dof":session.dof, "dof_strength":st.dof_strength})
 	# Use one fixed composition for the linear bracket and both priority shots.
 	ex.aperture = 2.8
 	ex.iso = 100
@@ -252,7 +229,6 @@ func advanced() -> void:
 	key_press(KEY_F8)
 	await delay(0.3)
 	report("canceled_and_resumed", not session.state and not get_tree().paused)
-	report("fringe_restored_on_resume", vhs.material == original_vhs)
 	key_press(KEY_F8)
 	await delay(0.2)
 	report("second_entry", session.state != null)

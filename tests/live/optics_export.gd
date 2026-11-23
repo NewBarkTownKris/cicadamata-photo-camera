@@ -81,8 +81,6 @@ func run(probe) -> void:
 	st.directory = OS.get_executable_path().get_base_dir().path_join("Photo Test Output")
 	st.look = 0
 	st.grain = false
-	st.fringe_off = true
-	st.clean_motion = true
 	st.capture_scale = 1
 	st.dof_strength = 1
 	ex.mode = 1

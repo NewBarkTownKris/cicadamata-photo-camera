@@ -151,8 +151,7 @@ def main():
         sys.exit(f"Retail process exited with status {proc.returncode}")
     gates = ["done", "restored_view", "frozen", "player_still", "matched_entry", "hidden_rig", "restored_rig"]
     if args.scenario == "matrix":
-        gates += ["fringe_disabled", "fringe_restored", "fringe_restored_on_resume", "motion_effects_disabled",
-                  "studio", "print_restored", "canceled_and_resumed", "second_entry"]
+        gates += ["studio", "print_restored", "canceled_and_resumed", "second_entry"]
     if "error" in result:
         sys.exit(result["error"])
     for key in gates:

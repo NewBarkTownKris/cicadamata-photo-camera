@@ -44,7 +44,6 @@ At print sizes the finder shows progress for each file. Wait for **Saved PNG + E
 | Cycle exposure mode | O | Studio |
 | Slower / faster shutter | Semicolon / apostrophe, or Alt + wheel | Studio |
 | Lower / higher manual ISO | Comma / period, or Ctrl + Alt + wheel | Studio |
-| Toggle chromatic aberration, toggle speed lines and radial blur | C, V | Studio |
 | Toggle finder, thirds, cycle reticle, controls guide | H, G, R, F1 | Studio provides thirds and reticle |
 | Open Studio, choose output folder | F4, F2 | L3, then Screenshot folder |
 | Take PNG, take PNG + EXR | F9 or left click, F3 | A / Cross, Y / Triangle |

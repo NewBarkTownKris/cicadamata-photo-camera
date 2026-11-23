@@ -10,7 +10,6 @@ class Stub extends Node:
 	var finder := Finder.new()
 	var studio := Studio.new()
 	var camera := Camera3D.new()
-	var state: RefCounted
 	var frame_index := 0
 	var portrait := false
 	var show_grid := true
@@ -81,6 +80,9 @@ func run():
 	for code in [KEY_F3, KEY_F9, KEY_B, KEY_N, KEY_T, KEY_J, KEY_K]:
 		key.keycode = code
 		check(not studio.handle(s, key), "Studio passes finder shortcut %s to session" % code)
+	for code in [KEY_C, KEY_V]:
+		key.keycode = code
+		check(not studio.handle(s, key), "Studio leaves retired shortcut %s unbound" % code)
 	key.keycode = KEY_Y
 	check(studio.handle(s, key) and s.dof and studio.dof_strength == 2, "DOF multiplier enables lens blur")
 	button(s, JOY_BUTTON_Y, true)
@@ -140,6 +142,14 @@ func run():
 	check(persisted.capture_scale == 4 and persisted.mode == Exposure.Mode.APERTURE_PRIORITY, "persisted choices")
 	check(persisted.directory == chosen and persisted.lens_preset == 4, "destination and chosen preset survive restart")
 	check(not persisted.has("focus_m") and not persisted.has("continuous_af"), "session focus excluded")
+	persisted.merge({"fringe_off": true, "clean_motion": true, "reticle": 2}, true)
+	check(Prefs.write(persisted) == OK, "legacy profile fixture")
+	studio.open_session(s)
+	check(s.reticle == 2, "restore supported options from a legacy profile")
+	studio._adjust(s, "reticle", 1)
+	studio.close_session(s)
+	persisted = Prefs.read()
+	check(persisted.reticle == 3 and not persisted.has("fringe_off") and not persisted.has("clean_motion"), "omit retired options on the next save")
 	check(Prefs.write({"look": 5}, "user://prefs-test.json") == OK, "first save")
 	check(Prefs.write({"look": 7}, "user://prefs-test.json") == OK, "second save")
 	var broken := FileAccess.open("user://prefs-test.json", FileAccess.WRITE)

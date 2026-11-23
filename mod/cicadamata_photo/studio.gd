@@ -19,13 +19,12 @@ const ROWS := [
 	["mode", "Exposure mode"], ["aperture", "Aperture"], ["seconds", "Shutter time"], ["iso", "ISO"],
 	["auto_iso", "Auto ISO"], ["compensation_thirds", "EV compensation"], ["min_iso", "Auto ISO minimum"],
 	["max_iso", "Auto ISO maximum"], ["preferred_seconds", "Preferred minimum shutter"], ["look", "Film look"],
-	["grain", "ISO grain"], ["grain_iso", "Grain ISO in Game"], ["fringe_off", "Chromatic aberration"],
-	["clean_motion", "Speed lines and radial blur"], ["frame_index", "Frame"], ["portrait", "Orientation"],
+	["grain", "ISO grain"], ["grain_iso", "Grain ISO in Game"], ["frame_index", "Frame"], ["portrait", "Orientation"],
 	["capture_scale", "Capture scale"], ["lens", "Lens"], ["dof", "Depth of field"], ["dof_strength", "DOF multiplier"],
 	["continuous_af", "Focus mode"], ["focus_m", "Focus distance"], ["fine_focus", "Focus steps"],
 	["reticle", "Reticle"], ["show_grid", "Thirds grid"], ["directory", "Screenshot folder"],
 ]
-const OWN_KEYS := ["lens_preset", "capture_scale", "look", "grain", "grain_iso", "fringe_off", "clean_motion", "dof_strength", "directory"]
+const OWN_KEYS := ["lens_preset", "capture_scale", "look", "grain", "grain_iso", "dof_strength", "directory"]
 const DEFAULT_DIRECTORY := "user://CICADAMATA-Photo/Photos"
 
 var visible := false
@@ -36,8 +35,6 @@ var capture_scale := 1
 var look := 0
 var grain := false
 var grain_iso := 100
-var fringe_off := false
-var clean_motion := false
 var dof_strength := 1
 var directory := DEFAULT_DIRECTORY
 var center_distance := NAN
@@ -222,8 +219,6 @@ func handle(s, event: InputEvent) -> bool:
 			KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
 				lens_preset = -1
 				return false
-			KEY_C: _adjust(s, "fringe_off", 1)
-			KEY_V: _adjust(s, "clean_motion", 1)
 			KEY_Y: _adjust(s, "dof_strength", 1)
 			KEY_U: _adjust(s, "aperture", -1)
 			KEY_I: _adjust(s, "aperture", 1)
@@ -406,8 +401,6 @@ func _value(s, key: String, reading: Exposure.Reading) -> String:
 		"frame_index": return Optics.FRAME_NAMES[s.frame_index]
 		"portrait": return "Rotated" if s.portrait else "Landscape"
 		"reticle": return RETICLES[s.reticle]
-		"fringe_off": return "Off" if fringe_off else "Game"
-		"clean_motion": return "Clean" if clean_motion else "Game"
 		"continuous_af": return "Continuous AF" if s.continuous_af else "Locked"
 		"fine_focus": return "Fine (1%)" if s.fine_focus else "Coarse (20%)"
 		"focus_m": return "%.2f m" % s.focus_m
@@ -429,8 +422,6 @@ func _value(s, key: String, reading: Exposure.Reading) -> String:
 func refresh(s, reading: Exposure.Reading) -> void:
 	if not s.finder or not is_instance_valid(_film):
 		return
-	if s.state and s.state.has_method("apply_effects"):
-		s.state.apply_effects(fringe_off, clean_motion)
 	_film.configure(look, grain, grain_iso if s.exposure.mode == Exposure.Mode.GAME else reading.iso)
 	_persist(s)
 	var finder = s.finder

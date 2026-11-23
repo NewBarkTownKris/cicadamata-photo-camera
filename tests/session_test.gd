@@ -62,7 +62,13 @@ func _run() -> void:
 	ui.add_child(hint)
 	var vhs := ColorRect.new()
 	vhs.name = "VHS"
+	var native_material := ShaderMaterial.new()
+	vhs.material = native_material
 	ui.add_child(vhs)
+	var motion := ColorRect.new()
+	motion.name = "SpeedLines"
+	motion.hide()
+	ui.add_child(motion)
 	var menu := Control.new()
 	menu.name = "Pause"
 	ui.add_child(menu)
@@ -87,7 +93,11 @@ func _run() -> void:
 	check(paused and root.get_camera_3d() == session.camera, "frozen and detached")
 	check(session.camera.get_camera_transform().is_equal_approx(original_transform), "evaluated source pose, including offsets")
 	check(session.camera.fov == source.fov and session.camera.attributes == source.attributes, "game lens and treatment")
-	check(not rig.visible and not crosshair.visible and not hint.visible and vhs.visible, "HUD and source rig suppressed")
+	check(not rig.visible and not crosshair.visible and not hint.visible, "HUD and source rig suppressed")
+	check(vhs.visible and vhs.material == native_material and not motion.visible, "entry preserves native effects")
+	var replacement_material := ShaderMaterial.new()
+	vhs.material = replacement_material
+	motion.show()
 	check(not controller.can_process(), "game controller blocked during pause")
 	check(global.can_process() and not global.showmouse, "Steam service stays active while mod owns cursor")
 	check(session.can_process(), "session can process while paused")
@@ -135,7 +145,8 @@ func _run() -> void:
 	check(global.showmouse, "original Steam service cursor policy restored")
 	check(not paused and source == root.get_camera_3d(), "original camera and simulation restored")
 	check(controller.process_mode == Node.PROCESS_MODE_ALWAYS, "pause controller restored")
-	check(rig.visible and crosshair.visible and not hint.visible and vhs.visible, "exact visibility restoration")
+	check(rig.visible and crosshair.visible and not hint.visible, "exact HUD visibility restoration")
+	check(vhs.visible and vhs.material == replacement_material and motion.visible, "exit preserves changes to native effects")
 	check(source.get_camera_transform().is_equal_approx(original_transform) and is_equal_approx(source.fov, 37.85), "original pose")
 	await process_frame
 	check(session.enter(), "second session")
