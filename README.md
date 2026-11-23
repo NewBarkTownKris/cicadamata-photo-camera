@@ -1,5 +1,7 @@
 # CICADAMATA Photo Mode
 
+**Choose Vulkan when launching CICADAMATA from Steam.** Live gameplay has been tested only on Linux via Proton.
+
 A free camera for the Windows Steam edition of CICADAMATA, app `3817250`, build `25963814`. Freeze a first-person scene, frame it with a photographic lens, and save a display PNG or a PNG and scene-linear EXR pair. The Windows and Linux/Proton packages install into an existing copy of the game. [Installation and removal](docs/INSTALL.md)
 
 ## Take a photo

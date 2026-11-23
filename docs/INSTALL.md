@@ -4,6 +4,8 @@ Use the archive for Windows or Linux/Proton. The mod targets Steam app `3817250`
 
 Extract the whole ZIP into a folder outside the Steam game directory. Close CICADAMATA and let Steam finish any updates. Allow about 1.3 GiB of free space on the game drive for the installer to prepare the mod and a verified stock backup.
 
+After installation, launch CICADAMATA from Steam and select the option labeled **VULKAN + use if game crashes**. Live gameplay has been tested only on Linux via Proton.
+
 ## Windows
 
 Run `Install-Windows.cmd` from the extracted folder. From Command Prompt, use the launcher with an explicit game directory if automatic detection reports multiple installs or cannot find Steam.
