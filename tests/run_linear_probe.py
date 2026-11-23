@@ -23,6 +23,7 @@ def run(godot):
         shutil.copytree(ROOT / "mod/cicadamata_photo", project / "cicadamata_photo")
         shutil.copy(ROOT / "tests/linear_render_probe.gd", project)
         shutil.copy(ROOT / "tests/paired_render_probe.gd", project)
+        shutil.copy(ROOT / "tests/dof_render_probe.gd", project)
         target = work / "linear.exr"
         env = os.environ.copy()
         for name in ("HOME", "XDG_RUNTIME_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME"):
@@ -58,6 +59,13 @@ def run(godot):
         pixels, exif = read_photo_exr(exrs[0])
         if pixels.shape != (252, 168, 3) or abs(float(pixels[:, :, 2].mean()) - 12.0) > 0.1 or not exif:
             raise SystemExit("Invalid integrated print master")
+
+        command[-3:] = ["res://dof_render_probe.gd", "--", str(work / "optics")]
+        result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=90)
+        log = result.stdout + result.stderr
+        print(log, end="", flush=True)
+        if result.returncode or "ERROR:" in log or "0 failures" not in log:
+            raise SystemExit("Optical depth-of-field fixture failed")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

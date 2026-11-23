@@ -206,6 +206,8 @@ func _draw_studio(font: Font, font_size: int, line_height: float, pad: float) ->
 	var baseline := pad * 2 + font.get_ascent(font_size)
 	draw_string(font, Vector2(2 * pad, baseline), "Studio   %d / %d" % [studio_selection + 1, studio_lines.size()],
 		HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, KEY_COLOR)
+	draw_string(font, Vector2(2 * pad, baseline), "F3 / Y button   PNG + EXR",
+		HORIZONTAL_ALIGNMENT_RIGHT, panel_width - 2 * pad, font_size, KEY_COLOR)
 	var value_x := pad + panel_width * 0.54
 	baseline += line_height + pad * 0.5
 	for i in range(first, first + count):

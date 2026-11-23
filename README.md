@@ -6,7 +6,7 @@ A free camera for the Windows Steam edition of CICADAMATA, app `3817250`, build 
 
 1. Enter a playable level and press **F8**. The camera starts at your current view. Move with WASD, aim with the mouse, and press **N** to focus on the surface under the reticle.
 2. Press **F4** for Studio. Choose a lens, exposure, film look, crop and capture scale. The finder shows the output dimensions in pixels. Press F4 to return to the finder.
-3. Press **F9** for a PNG or **F3** for a matching PNG and EXR. The finder reports capture progress and confirms the save. **F2** opens the photo folder picker.
+3. Press **F9** for a PNG or **F3** for a matching PNG and EXR. Both shortcuts work in the finder and Studio. On a controller, **Y / Triangle** requests the pair. **F2** opens the photo folder picker.
 4. Press and release **F8** to resume. Release any held movement and action controls so they do not carry into gameplay.
 
 ## Capture and print
@@ -14,6 +14,10 @@ A free camera for the Windows Steam edition of CICADAMATA, app `3817250`, build 
 **Display PNG.** The PNG includes the game's display treatment and your chosen film and grain settings. The shot excludes the finder and gameplay HUD. Studio offers Neutral, Daylight negative, Pastel negative, Chrome slide, Color print, Instant print, Tungsten negative, Cross process, Fine monochrome, Silver print and Hard monochrome. Grain follows the effective ISO, with a separate grain ISO dial in Game exposure.
 
 **Scene-linear EXR.** F3 writes the PNG first, then captures the Forward+ 3D color after transparent geometry and before the display transform and film treatment. The EXR carries linear Rec.709/D65 color data and camera metadata. Game exposure uses half-float RGB. Photographic exposures are stored as 32-bit float RGB. Use the supplied offline developer for LogC3 or F-Log TIFFs and a linear DNG. [EXR development guide](docs/DEVELOPMENT.md)
+
+At print sizes the finder shows progress for each file. Wait for **Saved PNG + EXR** before resuming if you want both files. Pressing F3 while a PNG is still being written adds the EXR to that same shot.
+
+**Depth of field.** Press **B** to switch DOF on, then **N** to focus on the subject at the reticle. Use **J / K** to move the focus plane or **Y** on the keyboard to cycle the blur multiplier. Changing the multiplier also enables DOF. On Forward+, the optical blur uses scene depth in the finder, PNG and scene-linear EXR. For a more pronounced effect, select a longer lens in Studio and use a wider aperture.
 
 **Print scale.** Choose 1×, 2×, 3× or 4× in Studio. The scene is rendered at the increased resolution with the same framing. At 4×, both dimensions quadruple and the pixel count increases sixteenfold. A 65:24 crop at 3840 × 2160 yields 3835 × 1416 pixels at 1× and **15,340 × 5,664** at 4×, enough for **51.1 × 18.9 inches at 300 ppi**. The finder reports a renderer limit or insufficient disk space when detected. Large captures take longer, especially with timed shutters. Large shots can render in overlapping bands. Screen-space effects and animated display shaders can vary across bands and between the PNG and EXR passes.
 

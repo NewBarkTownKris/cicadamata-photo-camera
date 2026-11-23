@@ -206,7 +206,7 @@ func handle(s, event: InputEvent) -> bool:
 		if event.keycode == KEY_F2 and not event.echo:
 			_pick(s)
 			return true
-		if visible:
+		if visible and event.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE]:
 			match event.keycode:
 				KEY_UP: _navigate(s, -1)
 				KEY_DOWN: _navigate(s, 1)
@@ -269,6 +269,10 @@ func _joy_button(s, event: InputEventJoypadButton) -> bool:
 		_back_alone = false
 	if event.button_index == JOY_BUTTON_LEFT_STICK:
 		_toggle(s)
+	elif event.button_index == JOY_BUTTON_Y:
+		s.request_shot(true)
+	elif event.button_index == JOY_BUTTON_RIGHT_STICK:
+		s.focus_requested = true
 	elif visible:
 		match event.button_index:
 			JOY_BUTTON_DPAD_UP: _navigate(s, -1)
@@ -276,11 +280,8 @@ func _joy_button(s, event: InputEventJoypadButton) -> bool:
 			JOY_BUTTON_DPAD_LEFT: _adjust(s, ROWS[selected][0], -1)
 			JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_A: _adjust(s, ROWS[selected][0], 1)
 			JOY_BUTTON_B: _toggle(s)
-	else:
-		match event.button_index:
-			JOY_BUTTON_A: s.request_shot(false)
-			JOY_BUTTON_Y: s.request_shot(true)
-			JOY_BUTTON_RIGHT_STICK: s.focus_requested = true
+	elif event.button_index == JOY_BUTTON_A:
+		s.request_shot(false)
 	return true
 
 
@@ -335,7 +336,9 @@ func _adjust(s, key: String, step: int) -> void:
 				else:
 					index = clampi(index + step, 0, choices.size() - 1)
 				owner.set(key, choices[index])
-				if key == "min_iso":
+				if key == "dof_strength":
+					s.dof = true
+				elif key == "min_iso":
 					e.max_iso = maxi(e.max_iso, e.min_iso)
 				elif key == "max_iso":
 					e.min_iso = mini(e.min_iso, e.max_iso)

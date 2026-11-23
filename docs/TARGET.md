@@ -51,6 +51,8 @@ The first playable level was loaded through the title's normal menu and level-tr
 | Destination | The native F2 dialog selected a path containing spaces. The next PNG landed in that directory, then the game resumed and exited. |
 | Development | The CLI developed a real game EXR to two 16-bit log TIFFs and a float32 DNG. Applying the DNG's stored baseline exposure reproduced every original channel value. |
 
+The v0.1.1 optical regression ran in level 4-2 at fullscreen 3840 × 2160 with PixelZoom enabled. F3 from an open Studio wrote a clean 15,340 × 5,664 PNG and a 1.04 GB float32 EXR at 16 mm, f/3.5, 1/250 s and ISO 100. A scanline decoder checked every pixel. Changing focus from 0.28 m to a billboard at 10.98 m restored detail at both 16 mm and 85 mm. After matching the output scale, the 4× EXR retained 98.9% of the 1× defocus signal. [Retail optical test](../tests/live/optics_export.gd) · [Independent file and focus checks](../tests/live/check_optics.py)
+
 The physical controller, native Windows desktop, Steam Deck and imports into Resolve or Lightroom remain outside this test setup. Renderer-specific screen-space effects can vary in very large banded shots. Print time and maximum dimensions depend on the device, scene and available memory.
 
 The retail test harness and independent file checks are under [tests/live](../tests/live). The package contains mod code, installation tools and documentation. Steam supplies the game files.

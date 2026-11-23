@@ -3,6 +3,7 @@ extends Node
 const GameState := preload("res://cicadamata_photo/game_state.gd")
 const Optics := preload("res://cicadamata_photo/camera_math.gd")
 const Exposure := preload("res://cicadamata_photo/exposure.gd")
+const DepthOfField := preload("res://cicadamata_photo/depth_of_field.gd")
 const Finder := preload("res://cicadamata_photo/finder.gd")
 const Capture := preload("res://cicadamata_photo/capture.gd")
 const Studio := preload("res://cicadamata_photo/studio.gd")
@@ -33,6 +34,7 @@ var _angles := Vector3.ZERO
 var _last_tick := 0
 var capture := Capture.new()
 var studio := Studio.new()
+var optics_effect: DepthOfField
 var linear: Linear
 var _meter_id := -1
 var _meter_deadline := 0
@@ -41,6 +43,7 @@ var _meter_gate: Array = []
 var _luminance := NAN
 var _waiting_meter := false
 var _pair_requested := false
+var _shot_used_optical := false
 var _shot_pending: bool:
 	get: return capture.busy or _waiting_meter
 var _resume_pending := false
@@ -104,7 +107,8 @@ func enter() -> bool:
 	_next_meter = 0
 	_next_af_ms = 0
 	linear = Linear.new()
-	linear.install(camera)
+	optics_effect = DepthOfField.new()
+	linear.install(camera, optics_effect)
 	studio.open_session(self)
 	_last_tick = Time.get_ticks_usec()
 	_apply_attributes()
@@ -125,8 +129,10 @@ func leave() -> void:
 	_cancel_meter()
 	_waiting_meter = false
 	if capture.busy:
-		capture.cancel()
+		capture.cancel("Photo mode closed")
 	linear.uninstall(camera)
+	optics_effect.close()
+	optics_effect = null
 	linear = null
 	studio.close_session(self)
 	_resume_pending = false
@@ -248,6 +254,17 @@ func _input(event: InputEvent) -> void:
 	if _resume_pending or not _intact():
 		return
 	if _shot_pending:
+		var wants_pair: bool = (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F3
+			or event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_Y)
+		if wants_pair:
+			if _waiting_meter:
+				_pair_requested = true
+			elif capture.busy:
+				var issue: String = capture.promote_to_pair()
+				if not issue.is_empty():
+					_status = issue
+					push_warning("[CICADAMATA Photo] " + issue)
+					_refresh()
 		if capture.recording and event is InputEventMouseMotion:
 			_turn(event.screen_relative * 0.0025)
 		if event is InputEventJoypadButton and event.button_index == JOY_BUTTON_BACK:
@@ -269,8 +286,9 @@ func _input(event: InputEvent) -> void:
 
 func _key(key: Key) -> void:
 	match key:
-		KEY_F9: request_shot()
-		KEY_F3: request_shot(true)
+		KEY_F9, KEY_F3:
+			request_shot(key == KEY_F3)
+			return
 		KEY_F1: help_open = not help_open
 		KEY_H: guides = not guides
 		KEY_G: show_grid = not show_grid
@@ -340,9 +358,20 @@ func _physics_process(_delta: float) -> void:
 
 
 func _apply_attributes() -> void:
+	# The print shutter temporarily sets an off-center frustum and changes
+	# the root viewport dimensions. Keep the lens, aperture and sensor pitch
+	# from the finder until the original camera and viewport are restored.
+	if capture.busy:
+		return
 	var shot := exposure.solve(_luminance)
 	if linear:
 		linear.set_gain(shot.gain if shot.ready else 1.0)
+	var focal := _mm()
+	var nearest := maxf(camera.near, maxf(0.1, (focal + 1.0) / 1000.0))
+	focus_m = clampf(focus_m, nearest, camera.far)
+	var raster_width := Finder.render_size(get_viewport()).x
+	var optical_blur := optics_effect.configure(dof and linear.is_available(), focus_m, focal,
+		shot.aperture, studio.dof_strength, raster_width)
 	if not dof and exposure.mode == Exposure.Mode.GAME:
 		camera.attributes = _game_attributes
 		return
@@ -359,35 +388,45 @@ func _apply_attributes() -> void:
 					"dof_blur_far_distance", "dof_blur_far_transition"]:
 				_photo_attributes.set(key, _game_attributes.get(key))
 		return
-	# Near/far sharp limits from the thin lens equation (0.03 mm CoC).
-	# Godot's practical blur beyond them is an approximation to lens bokeh.
-	var focal := _mm() / 1000.0
-	var h := focal * focal / (shot.aperture * 0.00003) + focal
-	var plane := maxf(focus_m, focal + 0.001)
-	var near_limit := h * plane / (h + plane - focal)
-	var far_limit := camera.far if h <= plane - focal else minf(camera.far, h * plane / (h - plane + focal))
+	if optical_blur:
+		# Optical DOF already ran before the HDR tap. Suppress any inherited
+		# camera blur so the display receives exactly the same optical pass.
+		_photo_attributes.dof_blur_near_enabled = false
+		_photo_attributes.dof_blur_far_enabled = false
+		return
+	# Forward+ can still use Godot's physical depth kernel when a driver
+	# cannot allocate the custom compositor. It uses a 64-pixel base radius.
 	_photo_attributes.dof_blur_near_enabled = true
-	_photo_attributes.dof_blur_far_enabled = far_limit < camera.far
-	_photo_attributes.dof_blur_near_distance = near_limit
-	_photo_attributes.dof_blur_far_distance = far_limit
-	_photo_attributes.dof_blur_near_transition = maxf(0.05, near_limit * 0.5)
-	_photo_attributes.dof_blur_far_transition = maxf(0.1, far_limit)
-	_photo_attributes.dof_blur_amount = clampf(studio.dof_strength * Optics.circle_of_confusion_mm(focal * 1000, shot.aperture, plane, camera.far), 0.01, 1.0)
+	_photo_attributes.dof_blur_far_enabled = true
+	_photo_attributes.dof_blur_near_distance = focus_m
+	_photo_attributes.dof_blur_far_distance = focus_m
+	_photo_attributes.dof_blur_near_transition = -1.0
+	_photo_attributes.dof_blur_far_transition = -1.0
+	var diameter_mm := focal * focal / (shot.aperture * (focus_m * 1000.0 - focal))
+	_photo_attributes.dof_blur_amount = clampf(0.5 * diameter_mm * raster_width * studio.dof_strength /
+		(Optics.SENSOR_WIDTH_MM * 64.0), 0.0, 1.0)
 
 
 func _refresh() -> void:
+	if capture.busy:
+		_capture_progress(_status)
+		return
 	finder.frame_index = frame_index
 	finder.portrait = portrait
 	finder.show_grid = show_grid
 	finder.reticle = reticle
 	finder.help_open = help_open
 	var shot := exposure.solve(_luminance)
+	var blur_label := "Off"
+	if dof:
+		blur_label = "%d×" % studio.dof_strength
+		if not optics_effect.enabled:
+			blur_label += " display only" if RenderingServer.get_current_rendering_method() != "gl_compatibility" else " (requires Forward+)"
 	finder.readout = "%.1f mm  |  %s  |  f/%s  |  %s  |  ISO %d  |  %s %.2f m  |  DOF %s" % [
 		_mm(), Studio.MODES[exposure.mode], shot.aperture, Studio.shutter_text(shot.seconds), shot.iso,
-		"AF-C" if continuous_af else "Focus", focus_m, "On" if dof else "Off"]
+		"AF-C" if continuous_af else "Focus", focus_m, blur_label]
 	finder.status = _status
-	if not capture.busy:
-		overlay.visible = guides or studio.visible or _resume_pending
+	overlay.visible = guides or studio.visible or _resume_pending
 	studio.refresh(self, shot)
 	finder.queue_redraw()
 
@@ -455,6 +494,9 @@ func request_shot(paired := false) -> void:
 
 
 func _start_shot(paired: bool) -> void:
+	if dof and optics_effect.has_failed():
+		_apply_attributes()
+	_shot_used_optical = optics_effect.enabled
 	var shot := exposure.solve(_luminance)
 	var meta := {"cicadamataExposureMode": Studio.MODES[exposure.mode], "focalLength": _mm()}
 	if exposure.mode != Exposure.Mode.GAME:
@@ -464,6 +506,7 @@ func _start_shot(paired: bool) -> void:
 		"scale":studio.capture_scale, "directory":studio.directory, "paired":paired, "seconds":seconds,
 		"gain":shot.gain, "metadata":meta}, linear)
 	if not error.is_empty():
+		push_warning("[CICADAMATA Photo] " + error)
 		_status = error
 		_refresh()
 
@@ -475,6 +518,11 @@ func _capture_progress(message: String) -> void:
 
 
 func _capture_finished(result: Dictionary) -> void:
+	if result.ok and dof and optics_effect:
+		if _shot_used_optical and optics_effect.has_failed():
+			result.message += " · Optical DOF unavailable during capture"
+		elif not _shot_used_optical and not result.exr_path.is_empty():
+			result.message += " · Optical DOF unavailable in EXR"
 	last_shot = result
 	_status = result.message
 	if not result.path.is_empty():
@@ -492,7 +540,7 @@ func resume_photo() -> void:
 		_waiting_meter = false
 		_cancel_meter()
 	if capture.cancelable:
-		capture.cancel()
+		capture.cancel("Canceled with resume control")
 
 
 func _resume_when_released() -> void:

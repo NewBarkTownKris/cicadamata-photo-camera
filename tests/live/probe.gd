@@ -45,7 +45,7 @@ func run() -> void:
 	global.call("_goto_menu")
 	await delay(2.0)
 	report("menu", str(get_tree().current_scene.scene_file_path))
-	global.call("_startlevel", "lvl_1_1")
+	global.call("_startlevel", "lvl_4_2" if "optics" in scenario else "lvl_1_1")
 	var deadline := Time.get_ticks_msec() + 65000
 	while Time.get_ticks_msec() < deadline:
 		await delay(0.25)
@@ -54,7 +54,12 @@ func run() -> void:
 			break
 	await delay(4)
 	report("level", str(get_tree().current_scene.scene_file_path))
-	if "print" in scenario:
+	if "optics" in scenario:
+		root_window.mode = Window.MODE_EXCLUSIVE_FULLSCREEN
+		await delay(1)
+		report("display_size", str(DisplayServer.screen_get_size(root_window.current_screen)))
+		report("window_size", str(root_window.size))
+	if "print" in scenario or ("optics" in scenario and root_window.get_texture().get_image().get_size() != Vector2i(3840,2160)):
 		root_window.content_scale_size = Vector2i(3840,2160)
 		root_window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 		root_window.content_scale_factor = 1.0
@@ -104,6 +109,8 @@ func run() -> void:
 		await large_print()
 	elif "detail" in scenario:
 		await load("res://cicadamata_photo/print_compare.gd").new().run(self)
+	elif "optics" in scenario:
+		await load("res://cicadamata_photo/optics_export.gd").new().run(self)
 	elif "picker" in scenario:
 		key_press(KEY_F2)
 		report("picker_open", session.studio.picking)

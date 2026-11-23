@@ -57,7 +57,7 @@ func _init() -> void:
 	access_resolved_color = true
 
 
-func install(camera: Camera3D) -> bool:
+func install(camera: Camera3D, optical_effect: CompositorEffect = null) -> bool:
 	if _installed or camera == null or not camera.is_inside_tree():
 		return false
 	if not RenderingServer.get_rendering_device() or RenderingServer.get_current_rendering_method() != "forward_plus":
@@ -76,6 +76,8 @@ func install(camera: Camera3D) -> bool:
 		for effect: CompositorEffect in inherited.compositor_effects:
 			if effect and effect.get_script() != get_script():
 				effects.append(effect)
+	if optical_effect:
+		effects.append(optical_effect)
 	effects.append(self)
 	_private = Compositor.new()
 	_private.compositor_effects = effects

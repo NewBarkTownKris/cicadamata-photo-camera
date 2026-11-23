@@ -76,6 +76,18 @@ func run():
 	check(Studio.stick(Vector2(0.6,0)).x < 0.6 and Studio.stick(Vector2(1,1)).length() <= 1.00001, "proportional sticks")
 	button(s, JOY_BUTTON_LEFT_STICK, true)
 	check(studio.blocks_motion() and s.finder.studio_open, "L3 opens Studio")
+	var key := InputEventKey.new()
+	key.pressed = true
+	for code in [KEY_F3, KEY_F9, KEY_B, KEY_N, KEY_T, KEY_J, KEY_K]:
+		key.keycode = code
+		check(not studio.handle(s, key), "Studio passes finder shortcut %s to session" % code)
+	key.keycode = KEY_Y
+	check(studio.handle(s, key) and s.dof and studio.dof_strength == 2, "DOF multiplier enables lens blur")
+	button(s, JOY_BUTTON_Y, true)
+	button(s, JOY_BUTTON_RIGHT_STICK, true)
+	check(s.shots == [true] and s.focus_requested and studio.visible, "Studio allows controller paired capture and focus")
+	s.shots.clear()
+	s.focus_requested = false
 	button(s, JOY_BUTTON_DPAD_RIGHT, true)
 	check(s.exposure.mode == Exposure.Mode.MANUAL, "D-pad mode")
 	button(s, JOY_BUTTON_DPAD_DOWN, true)

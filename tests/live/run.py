@@ -38,6 +38,18 @@ def stage(game, destination):
             '\tget_tree().root.add_child.call_deferred(probe)\n')
         for fixture in Path(__file__).parent.glob("*.gd"):
             shutil.copyfile(fixture, sources / fixture.name)
+        # An installed mod already owns the live PCK. Build the fixture from
+        # its verified original and the installed executable/dependencies.
+        backup = game / install.BACKUP_DIR
+        if backup.exists():
+            owned = install.backup_state(backup)
+            if install.digest(game / prepare.PCK_NAME) not in [prepare.STOCK_SHA256[prepare.PCK_NAME], *owned]:
+                raise ValueError("The installed pack does not match its receipt")
+            stock = sources / "stock"
+            stock.mkdir()
+            for name in prepare.STOCK_SHA256:
+                (stock / name).symlink_to((backup if name == prepare.PCK_NAME else game) / name)
+            game = stock
         prepare.prepare(game, destination, sources)
 
 
@@ -73,7 +85,7 @@ def main():
     parser.add_argument("--game-dir", type=Path, help="Stock CICADAMATA Steam directory")
     parser.add_argument("--timeout", type=int, default=150)
     parser.add_argument("--driver", choices=["vulkan", "d3d12"], help="Override the installed pack driver")
-    parser.add_argument("--scenario", choices=["matrix", "print", "detail", "smoke", "picker"], default="matrix")
+    parser.add_argument("--scenario", choices=["matrix", "print", "detail", "optics", "smoke", "picker"], default="matrix")
     parser.add_argument("--render-thread", choices=["safe", "separate"], help="Override the installed pack render thread mode")
     args = parser.parse_args()
     if not args.name.isalnum():
@@ -83,7 +95,7 @@ def main():
         sys.exit("A previous playtest with the private prefix is still running")
     run = WORK / args.name
     run.mkdir()
-    game = args.game_dir or install.discover(install.steam_roots())
+    game = (args.game_dir or install.discover(install.steam_roots())).resolve()
     stage(game, run / "game")
     if not COMPAT.exists():
         shutil.copytree(game.parents[1] / "compatdata/3817250", COMPAT, symlinks=True)
@@ -91,7 +103,11 @@ def main():
         sys.exit("The private profile resolves outside the copied prefix")
     config = PROFILE / "CicadaDisplay.ini"
     old = config.read_text()
-    for key, value in {"Windowed": "true", "ResWidth": "960", "ResHeight": "540", "MaxFramerate": "60.0"}.items():
+    display = {"Windowed": "true", "ResWidth": "960", "ResHeight": "540", "MaxFramerate": "60.0"}
+    if args.scenario == "optics":
+        display.update(Windowed="false", ResWidth="3840", ResHeight="2160", PixelZoom="true", RenderScale="1.0",
+                       FieldOfView="100.0", CRT="0.5", MotionBlur="true")
+    for key, value in display.items():
         old = re.sub(rf"(?m)^{key}=.*$", key + "=" + value, old)
     config.write_text(old)
     for name in ("studio.json", "studio.json.bak", "studio.json.tmp"):
@@ -103,8 +119,10 @@ def main():
                SteamAppId="3817250", SteamGameId="3817250", STEAM_COMPAT_INSTALL_PATH=str(run / "game"))
     env.update(PROTON_LOG="1", PROTON_LOG_DIR=str(run))
     overrides = (["--rendering-driver", args.driver] if args.driver else []) + (["--render-thread", args.render_thread] if args.render_thread else [])
+    window = "--windowed" if display["Windowed"] == "true" else "--fullscreen"
+    resolution = display["ResWidth"] + "x" + display["ResHeight"]
     command = [str(RUNTIME), "--verb=run", "--", str(PROTON), "run", str(run / "game/CICADAMATA.exe"),
-               *overrides, "--windowed", "--resolution", "960x540", "--max-fps", "60", "--audio-driver", "Dummy", "--", args.scenario]
+               *overrides, window, "--resolution", resolution, "--max-fps", "60", "--audio-driver", "Dummy", "--", args.scenario]
     try:
         with (run / "launcher.log").open("w") as log:
             proc = subprocess.Popen(command, cwd=run / "game", env=env, stdout=log, stderr=log, start_new_session=True)

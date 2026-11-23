@@ -69,6 +69,8 @@ var _sum: Sum
 var _thread: Thread
 var _stop := false
 var _worker_stamp := 0
+var _encoded_rows := 0
+var _shown_percent := -1
 var _mutex := Mutex.new()
 
 
@@ -100,6 +102,31 @@ static func plan(viewport_size: Vector2i, frame_index: int, portrait: bool, scal
 	return {"ok": reason.is_empty(), "reason": reason, "size":size, "crop":crop, "full":full}
 
 
+static func _space_available(output: DirAccess, size: Vector2i, paired: bool) -> bool:
+	var free := output.get_space_left()
+	var bytes_per_pixel := 16 if paired else 4
+	return free <= 0 or free >= size.x * size.y * bytes_per_pixel + 1048576
+
+
+func promote_to_pair() -> String:
+	if not busy:
+		return "No active shutter"
+	if _opts.get("paired", false):
+		return ""
+	if not _linear or (_linear.has_method("is_available") and not _linear.call("is_available")):
+		return "EXR requires Forward+. Saving PNG."
+	var output := DirAccess.open(_stem.get_base_dir())
+	if not output or not _space_available(output, _layout.size, true):
+		return "EXR destination unavailable or too little space. Saving PNG."
+	_opts.paired = true
+	print("[CICADAMATA Photo] Added EXR to pending shot ", _stem.get_file())
+	if recording:
+		progress.emit("Recording PNG + EXR shutter")
+	else:
+		_show_progress(_shown_percent if _shown_percent >= 0 else 0)
+	return ""
+
+
 func begin(camera: Camera3D, overlay: CanvasLayer, options: Dictionary, linear: CompositorEffect = null) -> String:
 	if busy:
 		return "A shutter is already active"
@@ -127,10 +154,8 @@ func begin(camera: Camera3D, overlay: CanvasLayer, options: Dictionary, linear: 
 	var output := DirAccess.open(directory)
 	if not output:
 		return "Could not open photo destination"
-	var bytes_free := output.get_space_left()
-	var bytes_per_pixel := 16 if _opts.get("paired", false) else 4
 	var output_size: Vector2i = _layout.size
-	if bytes_free > 0 and bytes_free < output_size.x * output_size.y * bytes_per_pixel + 1048576:
+	if not _space_available(output, output_size, _opts.get("paired", false)):
 		return "Not enough disk space for this capture"
 	var token := Crypto.new().generate_random_bytes(12)
 	if token.size() != 12:
@@ -165,6 +190,8 @@ func begin(camera: Camera3D, overlay: CanvasLayer, options: Dictionary, linear: 
 	_return_pose = camera.global_transform
 	_samples.clear()
 	_count = 1
+	print("[CICADAMATA Photo] Starting ", "PNG + EXR" if _opts.get("paired", false) else "PNG",
+		" ", output_size, " ", _stem.get_file())
 	stage = Stage.RECORD
 	if _timed:
 		_count = clampi(ceili(_opts.seconds * 60.0), 2, 64)
@@ -198,6 +225,7 @@ func _record(now: int) -> void:
 
 func _start_pass() -> void:
 	_next_row = 0
+	_shown_percent = -1
 	var full: Vector2i = _layout.full
 	var full_pixels := full.x * full.y
 	# For timed/HDR shots replay each pose through an overlapping strip, bounding
@@ -327,9 +355,23 @@ func _queue_frame() -> void:
 			_overlay.hide()
 		_readback_callback = _arm_display
 		RenderingServer.frame_pre_draw.connect(_readback_callback, CONNECT_ONE_SHOT)
-	var size: Vector2i = _layout.size
-	progress.emit("%s %d × %d  ·  rows %d–%d  ·  sample %d/%d" % [
-		"EXR" if _hdr else "PNG", size.x, size.y, _next_row + 1, _next_row + _band_rows, _sample + 1, _count])
+	_show_progress(_percent(0))
+
+
+func _percent(encoded: int) -> int:
+	# Every band replays all recorded poses, then writes the combined rows.
+	return 100 * (_next_row * _count + _band_rows * _sample + encoded) / (int(_layout.size.y) * _count)
+
+
+func _show_progress(percent: int) -> void:
+	_shown_percent = percent
+	var phase := "EXR (2/2)" if _hdr else ("PNG (1/2)" if _opts.get("paired", false) else "PNG")
+	var message := "%s  %d%%  ·  %d × %d" % [phase, percent, _layout.size.x, _layout.size.y]
+	if _count > 1:
+		message += "  ·  sample %d/%d" % [_sample + 1, _count]
+	if _hdr and cancelable:
+		message += "  ·  F8 cancels EXR and keeps PNG"
+	progress.emit(message)
 
 
 func _linear_source() -> CompositorEffect:
@@ -381,6 +423,7 @@ func _deliver(image: Image) -> void:
 	if _overlay and (_timed or _opts.scale > 1):
 		_overlay.visible = _visible
 	_worker_stamp = Time.get_ticks_msec()
+	_encoded_rows = 0
 	_thread = Thread.new()
 	if _thread.start(_consume.bind(image), Thread.PRIORITY_LOW) != OK:
 		_thread = null
@@ -400,6 +443,7 @@ func _consume(image: Image) -> String:
 		_mutex.lock()
 		var stop := _stop
 		_worker_stamp = Time.get_ticks_msec()
+		_encoded_rows = y
 		_mutex.unlock()
 		if stop:
 			return "Capture canceled"
@@ -442,7 +486,11 @@ func tick() -> void:
 		Stage.WORK:
 			_mutex.lock()
 			var stalled := Time.get_ticks_msec() - _worker_stamp > TIMEOUT_MS
+			var encoded := _encoded_rows
 			_mutex.unlock()
+			var percent := _percent(encoded)
+			if percent != _shown_percent:
+				_show_progress(percent)
 			if stalled:
 				_fail("Photo development timed out")
 				return
@@ -475,6 +523,7 @@ func _advance() -> void:
 	if not _opts.get("paired", false):
 		_end(true, "Saved " + _png_path.get_file())
 		return
+	print("[CICADAMATA Photo] PNG complete. Starting EXR for ", _png_path)
 	if not _linear:
 		_fail("Scene-linear readback unavailable")
 		return
@@ -490,9 +539,11 @@ func _advance() -> void:
 	_start_pass()
 
 
-func cancel() -> void:
+func cancel(reason := "Capture canceled") -> void:
 	if busy:
-		_fail("Capture canceled")
+		var phase := "EXR" if _hdr else ("PNG before EXR" if _opts.get("paired", false) else "PNG")
+		_fail("%s during %s recording" % [reason, phase] if recording else
+			"%s during %s at %d%%" % [reason, phase, maxi(0, _shown_percent)])
 
 
 func _fail(reason: String) -> void:

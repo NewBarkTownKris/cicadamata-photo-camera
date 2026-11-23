@@ -91,6 +91,15 @@ func _run() -> void:
 		if exr:
 			check(is_equal_approx(exr.get_pixel(0,0).r,4.0), "HDR survives")
 	check(root.size == SIZE and root.content_scale_mode == Window.CONTENT_SCALE_MODE_DISABLED and layer.visible, "root and overlay restored")
+	opts.paired = false
+	check(shutter.begin(camera, layer, opts, fake).is_empty(), "start PNG before paired shortcut")
+	var locked_stem := shutter._stem
+	check(shutter.promote_to_pair().is_empty() and shutter.promote_to_pair().is_empty(), "paired shortcut is idempotent")
+	check(not opts.paired and shutter._stem == locked_stem, "upgrading keeps the locked shot")
+	await _wait()
+	check(result.get("ok",false) and result.path == locked_stem + ".png"
+		and result.exr_path == locked_stem + ".exr", "both files from the original shutter")
+	opts.paired = true
 	check(shutter.begin(camera, layer, opts, fake).is_empty(), "start cancelable EXR print")
 	var until := Time.get_ticks_msec() + 5000
 	while not shutter.cancelable and shutter.busy and Time.get_ticks_msec() < until:
@@ -99,6 +108,7 @@ func _run() -> void:
 	check(shutter.cancelable and layer.visible, "cancel enabled after PNG publication")
 	shutter.cancel()
 	check(not result.ok and FileAccess.file_exists(result.path) and result.exr_path.is_empty(), "scaled EXR cancel keeps PNG")
+	check(result.message.contains("during EXR at") and result.message.contains("%"), "cancellation identifies the EXR phase")
 	opts.paired = false
 	opts.scale = 1
 	opts.seconds = 1.0 / 15.0
